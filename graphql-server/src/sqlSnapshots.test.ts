@@ -8,6 +8,7 @@ import {
   getTableCountEstimateOrExact,
   getTradesFromDb,
   getTransactions,
+  getTransactionByHash,
   getTransactionsByLedger,
   getOperations,
   getLedgers,
@@ -159,6 +160,19 @@ test('SQL snapshot: getTransactions ascending order', async () => {
   });
   const q = getLastQuery();
   verifySqlSnapshot('getTransactions_ascending', q.sql, q.params);
+});
+
+// ─── Transaction By Hash SQL Snapshots ───────────────────────────────────────
+
+test('SQL snapshot: getTransactionByHash', async () => {
+  const { pool, getLastQuery } = fakePool();
+  await getTransactionByHash(pool, 'mainnet', 'abc123hash');
+  const q = getLastQuery();
+  assert.match(q.sql, /hash = \\$1 AND network = \\$2/);
+  assert.doesNotMatch(q.sql, /abc123hash|mainnet/);
+  assert.doesNotMatch(q.sql, /\\bOFFSET\\b/i);
+  assert.deepEqual(q.params, ['abc123hash', 'mainnet']);
+  verifySqlSnapshot('getTransactionByHash_default', q.sql, q.params);
 });
 
 // ─── Operations SQL Snapshots ────────────────────────────────────────────────
