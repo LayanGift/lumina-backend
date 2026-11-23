@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Pool } from 'pg';
 import {
   getAccountOperationsInLedger,
+  getAccountAsOfLedgerFromDb,
   getTableCountEstimateOrExact,
   getTradesFromDb,
   getTransactions,
@@ -229,6 +230,18 @@ test('SQL snapshot: getLedgers paginated backward', async () => {
   await getLedgers(pool, 'mainnet', 20, cursor, 'BACKWARD');
   const q = getLastQuery();
   verifySqlSnapshot('getLedgers_backward', q.sql, q.params);
+});
+
+test('SQL snapshot: getAccountAsOfLedgerFromDb default query', async () => {
+  const { pool, getLastQuery } = fakePool();
+  const address = 'GBRPYHIL2CI537KXVHBV4Z6G7MXNGSQXN4F2XGJFFHJ3KJV3J4WKZQLQ';
+  await getAccountAsOfLedgerFromDb(pool, 'mainnet', address, 500000);
+  const q = getLastQuery();
+  assert.deepEqual(q.params, [address, 'mainnet', 500000]);
+  assert.doesNotMatch(q.sql, /mainnet|GBRPYHIL|500000/);
+  assert.match(q.sql, /WHERE address = \\$1 AND network = \\$2 AND last_modified_ledger <= \\$3/);
+  assert.doesNotMatch(q.sql, /\\bOFFSET\\b/i);
+  verifySqlSnapshot('getAccountAsOfLedgerFromDb_default', q.sql, q.params);
 });
 
 // ─── Accounts SQL Snapshots ──────────────────────────────────────────────────
