@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Pool } from 'pg';
 import {
   getAccountOperationsInLedger,
+  getAccountLifecycle,
   getTableCountEstimateOrExact,
   getTradesFromDb,
   getTransactions,
@@ -273,6 +274,38 @@ test('SQL snapshot: getAccounts address order default', async () => {
   await getAccounts(pool, { network: 'mainnet', limit: 20, orderBy: 'ADDRESS' });
   const q = getLastQuery();
   verifySqlSnapshot('getAccounts_address_default', q.sql, q.params);
+});
+
+// ─── Account Lifecycle SQL Snapshots (#440) ──────────────────────────────────
+
+test('SQL snapshot: getAccountLifecycle default query', async () => {
+  const { pool, getLastQuery } = fakePool();
+  const address = 'GBRPYHIL2CI537KXVHBV4Z6G7MXNGSQXN4F2XGJFFHJ3KJV3J4WKZQLQ';
+  await getAccountLifecycle(pool, 'mainnet', address, 20);
+  const q = getLastQuery();
+  assert.deepEqual(q.params, ['mainnet', JSON.stringify({ account: address }), 20]);
+  assert.doesNotMatch(q.sql, /mainnet|GBRPYHIL/);
+  assert.match(q.sql, /WHERE network = \\$1 AND type IN \\('create_account', 'account_merge'\\)/);
+  assert.match(q.sql, /details @> \\$2::jsonb/);
+  assert.match(q.sql, /ORDER BY ledger DESC, id DESC LIMIT \\$3/);
+  assert.doesNotMatch(q.sql, /\\bOFFSET\\b/i);
+  verifySqlSnapshot('getAccountLifecycle_default', q.sql, q.params);
+});
+
+test('SQL snapshot: getAccountLifecycle paginated forward', async () => {
+  const { pool, getLastQuery } = fakePool();
+  const address = 'GBRPYHIL2CI537KXVHBV4Z6G7MXNGSQXN4F2XGJFFHJ3KJV3J4WKZQLQ';
+  const cursor = encodeCursor('accountLifecycle', [500000, 'operation-123']);
+  await getAccountLifecycle(pool, 'mainnet', address, 20, cursor);
+  const q = getLastQuery();
+  assert.deepEqual(q.params, ['mainnet', JSON.stringify({ account: address }), 500000, 'operation-123', 20]);
+  assert.doesNotMatch(q.sql, /mainnet|GBRPYHIL|500000|operation-123/);
+  assert.match(q.sql, /WHERE network = \\$1 AND type IN \\('create_account', 'account_merge'\\)/);
+  assert.match(q.sql, /details @> \\$2::jsonb/);
+  assert.match(q.sql, /\\(ledger, id\\) < \\(\\$3::bigint, \\$4::text\\)/);
+  assert.match(q.sql, /ORDER BY ledger DESC, id DESC LIMIT \\$5/);
+  assert.doesNotMatch(q.sql, /\\bOFFSET\\b/i);
+  verifySqlSnapshot('getAccountLifecycle_forward', q.sql, q.params);
 });
 
 // ─── Account Signers SQL Snapshots (#454) ────────────────────────────────────
