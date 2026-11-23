@@ -239,8 +239,8 @@ test('SQL snapshot: getAccountAsOfLedgerFromDb default query', async () => {
   const q = getLastQuery();
   assert.deepEqual(q.params, [address, 'mainnet', 500000]);
   assert.doesNotMatch(q.sql, /mainnet|GBRPYHIL|500000/);
-  assert.match(q.sql, /WHERE address = \\$1 AND network = \\$2 AND last_modified_ledger <= \\$3/);
-  assert.doesNotMatch(q.sql, /\\bOFFSET\\b/i);
+  assert.match(q.sql, /WHERE address = \$1 AND network = \$2 AND last_modified_ledger <= \$3/);
+  assert.doesNotMatch(q.sql, /\bOFFSET\b/i);
   verifySqlSnapshot('getAccountAsOfLedgerFromDb_default', q.sql, q.params);
 });
 
