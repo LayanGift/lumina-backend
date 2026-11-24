@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
 import {
+  getAccountAsOfLedgerFromDb,
   getAccountOperationsInLedger,
   getAccountLifecycle,
   getTableCountEstimateOrExact,
@@ -618,4 +619,20 @@ test('SQL snapshot: getTableCountEstimateOrExact filtered whereClause', async ()
   assert.doesNotMatch(q.sql, /mainnet|true/);
   assert.match(q.sql, /\bnetwork\s*=\s*\$\d+/);
   verifySqlSnapshot('getTableCountEstimateOrExact_filtered', q.sql, q.params);
+});
+
+
+// ─── Account State As Of Ledger SQL Snapshots (#446) ─────────────────────────
+test('SQL snapshot: getAccountAsOfLedgerFromDb', async () => {
+  const { pool, getLastQuery } = fakePool();
+  const address = 'GBRPYHIL2CI537KXVHBV4Z6G7MXNGSQXN4F2XGJFFHJ3KJV3J4WKZQLQ';
+  await getAccountAsOfLedgerFromDb(pool, 'mainnet', address, 500000);
+  const q = getLastQuery();
+
+  assert.deepEqual(q.params, [address, 'mainnet', 500000]);
+  assert.doesNotMatch(q.sql, /mainnet|500000|GBRPYHIL/);
+  assert.match(q.sql, /WHERE address = \$1 AND network = \$2 AND last_modified_ledger <= \$3/);
+  assert.match(q.sql, /ORDER BY last_modified_ledger DESC LIMIT 1/);
+  assert.doesNotMatch(q.sql, /\bOFFSET\b/i);
+  verifySqlSnapshot('getAccountAsOfLedgerFromDb_default', q.sql, q.params);
 });
